@@ -1,1 +1,3 @@
+#!/usr/bin/env sh
+# Run lint (and fix) on every commit for staged files
 npx lint-staged

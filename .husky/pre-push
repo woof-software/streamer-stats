@@ -1,2 +1,4 @@
+#!/usr/bin/env sh
+# Block push unless full lint and format check pass
 npm run lint
 npm run format:check
