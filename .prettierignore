@@ -1,0 +1,4 @@
+snode_modules
+.git
+.husky
+*.min.js
