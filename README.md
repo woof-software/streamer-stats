@@ -1,5 +1,14 @@
 # cursor-foundation
 
+## Cursor / AI context (Morpho docs)
+
+For best AI assistance on Morpho-related code, add the Morpho docs to Cursor so they are indexed:
+
+1. Open **Cursor Settings** (⌘,) → **Features** → **Docs**.
+2. Click **Add new doc** and add: `https://docs.morpho.org/llms-all.txt`.
+
+This is per-machine; each teammate should do it once. The project also has a [Cursor rule](.cursor/rules/morpho-docs.mdc) that references this URL so the AI knows to use it when relevant.
+
 ## Lint and format workflow
 
 ESLint and Prettier run automatically:

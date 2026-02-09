@@ -2,18 +2,4 @@
 # Block push unless full lint and format check pass
 npm run lint
 npm run format:check
-
-# When pushing main/develop/dev/development, run semantic-release locally (no NPM_TOKEN in CI)
-branch=$(git branch --show-current)
-while read local_ref local_sha remote_ref remote_sha; do
-  case "$remote_ref" in
-    refs/heads/main|refs/heads/develop|refs/heads/dev|refs/heads/development)
-      case "$branch" in
-        main|develop|dev|development)
-          npx semantic-release
-          break
-          ;;
-      esac
-      ;;
-  esac
-done
+# semantic-release runs in CI on push to main (see .github/workflows/semantic-release.yml)
