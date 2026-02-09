@@ -1,12 +1,18 @@
 {
   "name": "cursor-foundation",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
+  "repository": "github:owner/cursor-foundation",
   "scripts": {
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "release": "standard-version",
+    "release:patch": "standard-version --release-as patch",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "release:dry": "standard-version --dry-run"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.8.0",
@@ -16,7 +22,8 @@
     "eslint-config-prettier": "^9.1.0",
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10",
-    "prettier": "^3.4.2"
+    "prettier": "^3.4.2",
+    "standard-version": "^9.5.0"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
