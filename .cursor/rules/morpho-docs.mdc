@@ -1,0 +1,12 @@
+---
+description: Morpho protocol documentation reference
+alwaysApply: false
+---
+
+# Morpho documentation
+
+When answering questions about **Morpho** (lending protocol, vaults, oracles, etc.), use the official docs as the source of truth:
+
+**URL:** https://docs.morpho.org/llms-all.txt
+
+Use this reference for Morpho-specific APIs, terminology, and behavior. For full indexed search in Cursor, add the URL in **Cursor Settings → Features → Docs** (see README).

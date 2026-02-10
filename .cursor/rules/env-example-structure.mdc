@@ -1,0 +1,27 @@
+---
+description: .env.example structure — keep RPC and API key variables at the top
+globs: **/.env.example
+alwaysApply: false
+---
+
+# .env.example Structure
+
+When creating or updating `.env.example`, keep this block **at the top** of the file, in this exact order:
+
+```
+RPC_MAINNET=
+RPC_ARBITRUM=
+RPC_BASE=
+RPC_OPTIMISM=
+RPC_POLYGON=
+RPC_SCROLL=
+RPC_LINEA=
+RPC_MANTLE=
+RPC_UNICHAIN=
+
+ETHERSCAN_API_KEY=
+```
+
+- Do not reorder or remove these variables.
+- Add any project-specific variables below this block.
+- Leave a blank line between the RPC block and `ETHERSCAN_API_KEY=`; keep one blank line before additional variables if needed.
