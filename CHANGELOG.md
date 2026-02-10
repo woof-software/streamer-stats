@@ -37,6 +37,9 @@ All notable changes to this project will be documented in this file. See [standa
 
 - **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([dade397](https://github.com/owner/cursor-foundation/commit/dade397d2ac96c501fb60680afd438c7b16b0a89))
 
+- **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([a424928](https://github.com/owner/cursor-foundation/commit/a424928247bd50820dd9fea224b74b0a82c51b36))
+
+- **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([1bffd39](https://github.com/owner/cursor-foundation/commit/1bffd39879ee6298bbb24a3a59f4be337aefabd6))
 ### 🐛 Bug Fixes
 
 - change local permissions ([c491e24](https://github.com/owner/cursor-foundation/commit/c491e24f65dc41be67256fa618ce09678b8cb83b))

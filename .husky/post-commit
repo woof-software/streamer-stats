@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 # Update CHANGELOG [Unreleased] with the commit we just made (conventional commits only).
 node scripts/update-unreleased-changelog.js
-# Amend the commit to include CHANGELOG so the changelog line lives with the commit
+# Amend the commit to include CHANGELOG so the changelog line lives with the commit.
+# HUSKY=0 prevents the amend from re-running this hook (avoids endless loop).
 if [ -n "$(git status -s CHANGELOG.md)" ]; then
-  git add CHANGELOG.md && git commit --amend --no-edit
+  git add CHANGELOG.md && HUSKY=0 git commit --amend --no-edit
 fi
