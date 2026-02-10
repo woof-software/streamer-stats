@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## 1.5.0 (2026-02-10)
+
+### 🐛 Bug Fixes
+
+- change local permissiions ([c491e24](https://github.com/owner/cursor-foundation/commit/c491e24f65dc41be67256fa618ce09678b8cb83b))
+- fix permission issue ([0e4c3c6](https://github.com/owner/cursor-foundation/commit/0e4c3c6ce811def808fd07607ef3d8c302d79754))
+
+### ✨ Features
+
+- add cursor folder. Fix workflow issues ([7144121](https://github.com/owner/cursor-foundation/commit/71441219c66c7a4936fd1fb7d57719f7c1160b3a))
+- **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([8e88fa4](https://github.com/owner/cursor-foundation/commit/8e88fa4365c519daf87422cc5594e39ee9e0eb74))
+- **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([740f6f8](https://github.com/owner/cursor-foundation/commit/740f6f8d4c62645891be725c2b9407d8fa0d6b38))
+- **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([a424928](https://github.com/owner/cursor-foundation/commit/a424928247bd50820dd9fea224b74b0a82c51b36))
+- **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([54325c8](https://github.com/owner/cursor-foundation/commit/54325c8a9ca64547ee5cfa70ca711eb8d537d951))
+- changelog ([948ad96](https://github.com/owner/cursor-foundation/commit/948ad9606e213720df520c61e07d48f217d64985))
+- **changelog:** update changelog ([f270097](https://github.com/owner/cursor-foundation/commit/f270097bfe9cd0671397b679bf18ab70329534ce))
+- **changlog:** add changelog ([bbb5963](https://github.com/owner/cursor-foundation/commit/bbb59631336e9b38a058e4d5e33dc9a27bcf9c4f))
+- **logic:** create stream stats generator ([d1dee78](https://github.com/owner/cursor-foundation/commit/d1dee78f913d7dbbf7050b981eb5eef010b5ed0a))
+- make husky to run eslint and prettier locally ([acd9daa](https://github.com/owner/cursor-foundation/commit/acd9daad6d52c4efe695c9c98c398de3b794b08c))
+- set up basic typescript project ([e805b1f](https://github.com/owner/cursor-foundation/commit/e805b1fdd5590091ff4b1c933b1d5eef525236e3))
+- **skills:** add git-commit agent skill for conventional commits ([eb50535](https://github.com/owner/cursor-foundation/commit/eb50535b22bf39e4b24e3de0b09609119db0487c))
+- update eslint file to ignore dist and .cursor ([b92403c](https://github.com/owner/cursor-foundation/commit/b92403ce7c287eed24435837c4832eccb2ab0198))
+
 ## [1.4.0](https://github.com/owner/cursor-foundation/compare/v1.3.0...v1.4.0) (2026-02-10)
 
 ### ✨ Features
