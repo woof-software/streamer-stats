@@ -2,14 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
-## [Unreleased]### Styles
+## [1.4.0](https://github.com/owner/cursor-foundation/compare/v1.3.0...v1.4.0) (2026-02-10)
 
-- **changelog:** fix Prettier formatting ([d23ba58](https://github.com/owner/cursor-foundation/commit/d23ba58c078543c66c5e8185e05849196323c5e2))
+### ✨ Features
 
-### Features
-
-- changelog ([ec2097d](https://github.com/owner/cursor-foundation/commit/ec2097d0f0e25bfb425d7ce84c7df7fcfbbca47b))
-- **changelog:** update changelog ([4d6f517](https://github.com/owner/cursor-foundation/commit/4d6f5178996d0b8fb91dbdbd83b2c1c5c98c53d4))
+- **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([8e88fa4](https://github.com/owner/cursor-foundation/commit/8e88fa4365c519daf87422cc5594e39ee9e0eb74))
+- **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([740f6f8](https://github.com/owner/cursor-foundation/commit/740f6f8d4c62645891be725c2b9407d8fa0d6b38))
+- **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([a424928](https://github.com/owner/cursor-foundation/commit/a424928247bd50820dd9fea224b74b0a82c51b36))
+- **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([54325c8](https://github.com/owner/cursor-foundation/commit/54325c8a9ca64547ee5cfa70ca711eb8d537d951))
 
 ## 1.3.0 (2026-02-10)
 
