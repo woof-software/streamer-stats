@@ -6,7 +6,6 @@ All notable changes to this project will be documented in this file. See [standa
 
 - **changelog:** fix Prettier formatting ([d23ba58](https://github.com/owner/cursor-foundation/commit/d23ba58c078543c66c5e8185e05849196323c5e2))
 
-
 ### Features
 
 - changelog ([ec2097d](https://github.com/owner/cursor-foundation/commit/ec2097d0f0e25bfb425d7ce84c7df7fcfbbca47b))
@@ -43,6 +42,8 @@ All notable changes to this project will be documented in this file. See [standa
 - **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([a424928](https://github.com/owner/cursor-foundation/commit/a424928247bd50820dd9fea224b74b0a82c51b36))
 
 - **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([1bffd39](https://github.com/owner/cursor-foundation/commit/1bffd39879ee6298bbb24a3a59f4be337aefabd6))
+
+- **agent:** add agents instractions, polish codebased. repo can be used for the next projects ([634a0d7](https://github.com/owner/cursor-foundation/commit/634a0d7919ee7e9c07ed917ff0917f2300052afd))
 
 ### 🐛 Bug Fixes
 
