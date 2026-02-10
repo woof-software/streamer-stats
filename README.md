@@ -30,6 +30,8 @@ After that, PRs cannot be merged until the Lint workflow passes.
 
 Releases and `CHANGELOG.md` are driven by [Conventional Commits](https://www.conventionalcommits.org/) and [Keep a Changelog](https://keepachangelog.com/). The changelog is **generated locally** (not on the server) using [standard-version](https://github.com/conventional-changelog/standard-version). When you push a version tag, CI creates the GitHub Release using the existing `CHANGELOG.md`.
 
+**Changelog on every commit:** A Husky **post-commit** hook runs `scripts/update-unreleased-changelog.js`, which appends the commit to the `## [Unreleased]` section of `CHANGELOG.md` (conventional commits only; `chore(release):` is skipped). The hook then amends the commit to include the updated `CHANGELOG.md`, so each commit stays self-contained. Run `npm run changelog:unreleased` manually to update Unreleased from the last commit without amending.
+
 ### Local release (recommended)
 
 From the default branch (e.g. `main`), run:

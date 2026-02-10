@@ -15,7 +15,8 @@
     "release:patch": "standard-version --release-as patch",
     "release:minor": "standard-version --release-as minor",
     "release:major": "standard-version --release-as major",
-    "release:dry": "standard-version --dry-run"
+    "release:dry": "standard-version --dry-run",
+    "changelog:unreleased": "node scripts/update-unreleased-changelog.js"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
