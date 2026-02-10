@@ -2,4 +2,5 @@
 # Block push unless full lint and format check pass
 npm run lint
 npm run format:check
-# semantic-release runs in CI on push to main (see .github/workflows/semantic-release.yml)
+# Releases: run `npm run release` (or release:patch/minor/major) locally, then push with --follow-tags.
+# CI creates a GitHub Release when a tag v* is pushed (see .github/workflows/release-from-tag.yml).

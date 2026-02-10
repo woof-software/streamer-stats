@@ -1,0 +1,46 @@
+# When a version tag (v*) is pushed, create a GitHub Release using CHANGELOG.md.
+# Changelog is generated locally via `npm run release` (standard-version) before pushing.
+name: Release from tag
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Extract release notes from CHANGELOG
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Match ## [X.Y.Z] or ## X.Y.Z (date) format
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" || $0 ~ "^## " v " " || $0 ~ "^## " v "\\(" { found=1; next }
+            found { if (/^## /) exit; print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          # Fallback: use first version block if no match (e.g. first release)
+          if [ ! -s RELEASE_NOTES.md ]; then
+            sed -n '/^## \[[0-9]\+\.[0-9]\+\.[0-9]\+\]\|^## [0-9]\+\.[0-9]\+\.[0-9]\+ /,/^## /p' CHANGELOG.md | sed '$d' > RELEASE_NOTES.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
