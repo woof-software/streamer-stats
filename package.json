@@ -18,7 +18,8 @@
     "release:dry": "standard-version --dry-run",
     "changelog:unreleased": "node scripts/update-unreleased-changelog.js",
     "commit": "cz",
-    "changelog:feature": "ts-node scripts/update-feature-changelog.ts"
+    "changelog:feature": "ts-node scripts/update-feature-changelog.ts",
+    "type-check": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

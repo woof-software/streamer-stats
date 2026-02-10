@@ -1,6 +1,6 @@
 name: Lint
 
-# Run only when code is merged into the default branch (branch merges)
+# Run on push to default branch (main/master)
 on:
   push:
     branches: [main, master]

@@ -1,5 +1,10 @@
 # cursor-foundation
 
+Foundation repo for Woof Software DeFi backend projects: tooling (lint, changelog, releases), workflows, and **AI agent instructions**. No application code lives here—copy what you need into new projects.
+
+- **AI instructions:** [agents/AGENTS.md](agents/AGENTS.md) (architecture, structure, patterns) and [agents/CONVENTIONS.md](agents/CONVENTIONS.md) (code style). Root [AGENTS.md](AGENTS.md) points to them.
+- **Using this for a new project:** Copy the `agents/` folder (and optionally `.github/`, `.husky/`, `scripts/`, config files) into the new repo.
+
 ## Cursor / AI context (Morpho docs)
 
 For best AI assistance on Morpho-related code, add the Morpho docs to Cursor so they are indexed:
@@ -8,6 +13,8 @@ For best AI assistance on Morpho-related code, add the Morpho docs to Cursor so 
 2. Click **Add new doc** and add: `https://docs.morpho.org/llms-all.txt`.
 
 This is per-machine; each teammate should do it once. The project also has a [Cursor rule](.cursor/rules/morpho-docs.mdc) that references this URL so the AI knows to use it when relevant.
+
+**Cursor skills:** Agent skills (e.g. changelog automation, git-commit) live in [.cursor/skills/](.cursor/skills/). Cursor reads from that path; it is the canonical location for this repo.
 
 ## Lint and format workflow
 
