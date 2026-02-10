@@ -16,7 +16,9 @@
     "release:minor": "standard-version --release-as minor",
     "release:major": "standard-version --release-as major",
     "release:dry": "standard-version --dry-run",
-    "changelog:unreleased": "node scripts/update-unreleased-changelog.js"
+    "changelog:unreleased": "node scripts/update-unreleased-changelog.js",
+    "commit": "cz",
+    "changelog:feature": "ts-node scripts/update-feature-changelog.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
@@ -29,7 +31,10 @@
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10",
     "prettier": "^3.4.2",
-    "standard-version": "^9.5.0"
+    "standard-version": "^9.5.0",
+    "commitizen": "^4.3.1",
+    "cz-conventional-changelog": "^3.3.0",
+    "ts-node": "^10.9.2"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
@@ -39,5 +44,10 @@
     "*.{json,md,yml,yaml}": [
       "prettier --write"
     ]
+  },
+  "config": {
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
   }
 }

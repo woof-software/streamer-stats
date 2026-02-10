@@ -1,0 +1,69 @@
+# Changelog & Release: on push to main or manual dispatch, bump version, update CHANGELOG.md, push tag, create GitHub Release.
+name: Changelog
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Release type (auto = infer from commits)"
+        required: true
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get previous tag
+        id: prev
+        run: echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog and bump version
+        id: release
+        run: |
+          if [ "${{ github.event.inputs.release_type }}" = "auto" ] || [ "${{ github.event.inputs.release_type }}" = "" ]; then
+            npm run release
+          else
+            npm run release -- --release-as ${{ github.event.inputs.release_type }}
+          fi
+          echo "tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
+
+      - name: Push commits and tags
+        run: git push --follow-tags origin main
+
+      - name: Create GitHub Release
+        if: steps.release.outputs.tag != steps.prev.outputs.tag
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          body_path: CHANGELOG.md
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -35,3 +35,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 - changelog ([ec2097d](https://github.com/owner/cursor-foundation/commit/ec2097d0f0e25bfb425d7ce84c7df7fcfbbca47b))
+
+- **changelog:** update changelog ([4d6f517](https://github.com/owner/cursor-foundation/commit/4d6f5178996d0b8fb91dbdbd83b2c1c5c98c53d4))
