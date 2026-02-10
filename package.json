@@ -3,7 +3,10 @@
   "version": "1.1.0",
   "private": true,
   "repository": "github:owner/cursor-foundation",
+  "main": "dist/index.js",
   "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -15,6 +18,8 @@
     "release:dry": "standard-version --dry-run"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
     "@commitlint/cli": "^19.8.0",
     "@commitlint/config-conventional": "^19.8.0",
     "@eslint/js": "^9.15.0",
