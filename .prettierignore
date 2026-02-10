@@ -2,3 +2,5 @@ node_modules
 .git
 .husky
 *.min.js
+docs
+scripts
