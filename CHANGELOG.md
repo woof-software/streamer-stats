@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.6.0](https://github.com/owner/cursor-foundation/compare/v1.5.0...v1.6.0) (2026-02-17)
+
+### ✨ Features
+
+- **script:** add additiona fields, such as streaming asset price, total USD stream balance ([f677b2e](https://github.com/owner/cursor-foundation/commit/f677b2e449355772ef5d8b2ee3a71112ea49bc6c))
+
 ## 1.5.0 (2026-02-10)
 
 ### 🐛 Bug Fixes
