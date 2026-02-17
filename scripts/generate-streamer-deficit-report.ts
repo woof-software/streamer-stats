@@ -3,6 +3,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { ethers } from "ethers";
+import type { HardhatRuntimeEnvironment } from "hardhat/types";
 
 type StreamVersion = "v1" | "v2";
 type ClaimAsset = "USDC" | "USD" | "UNKNOWN";
@@ -35,11 +36,21 @@ interface ReportRow {
   readonly totalBudget: string;
   readonly avgClaimCompPrice: string;
   readonly compPriceNative: string;
+  readonly remainingStreamTimeSec: string;
+  readonly remainingStreamTimeAfterSimSec: string;
+  readonly remainingUsd: string;
+  readonly remainingUsdAfterClaim567k: string;
 }
+
+/** Overrides passed to every view / pure contract call (empty = latest). */
+type ViewOverrides = { blockTag?: number };
 
 const COMP_TOKEN_ADDRESS = "0xc00e94cb662c3520282e6f5717214004a7f26888";
 const USDC_ORACLE_ADDRESS = "0x8fffffd4afb6115b954bd326cbE7b4ba576818f6".toLowerCase();
 const USD_CONSTANT_ORACLE_ADDRESS = "0xd72ac1bce9177cfe7aeb5d0516a38c88a64ce0ab".toLowerCase();
+
+/** Number of seconds to advance time before simulating a claim. */
+const SIMULATION_TIME_ADVANCE = 567_000;
 
 const STREAMS: ReadonlyArray<StreamTarget> = [
   {
@@ -186,6 +197,10 @@ function toCsv(rows: ReadonlyArray<ReportRow>): string {
     "Total budget ($)",
     "Avg COMP price ($)",
     "COMP price ($)",
+    "Remaining Stream Time (s)",
+    `Remaining Stream Time after +${SIMULATION_TIME_ADVANCE}s (s)`,
+    "Remaining ($)",
+    `Remaining after claim +${SIMULATION_TIME_ADVANCE}s ($)`,
   ];
 
   const dataRows = rows.map((row) =>
@@ -206,6 +221,10 @@ function toCsv(rows: ReadonlyArray<ReportRow>): string {
       row.totalBudget,
       row.avgClaimCompPrice,
       row.compPriceNative,
+      row.remainingStreamTimeSec,
+      row.remainingStreamTimeAfterSimSec,
+      row.remainingUsd,
+      row.remainingUsdAfterClaim567k,
     ]
       .map((v) => escapeCsv(v))
       .join(",")
@@ -216,13 +235,14 @@ function toCsv(rows: ReadonlyArray<ReportRow>): string {
 
 async function findBlockByTimestamp(
   provider: ethers.JsonRpcProvider,
-  targetTimestamp: number
+  targetTimestamp: number,
+  ceilingBlock?: number,
 ): Promise<number> {
   if (targetTimestamp <= 0) {
     return 0;
   }
 
-  const latestNumber = await provider.getBlockNumber();
+  const latestNumber = ceilingBlock ?? await provider.getBlockNumber();
   const latestBlock = await provider.getBlock(latestNumber);
   if (!latestBlock) {
     return 0;
@@ -254,14 +274,15 @@ async function getClaimTotals(
   address: string,
   version: StreamVersion,
   iface: ethers.Interface,
-  fromBlock: number
+  fromBlock: number,
+  ceilingBlock?: number,
 ): Promise<ClaimTotals> {
   const claimedEvent = iface.getEvent("Claimed");
   if (!claimedEvent) {
     return { totalComp: 0n, totalNative: 0n };
   }
   const topic = claimedEvent.topicHash;
-  const latestBlock = await provider.getBlockNumber();
+  const latestBlock = ceilingBlock ?? await provider.getBlockNumber();
 
   let totalComp = 0n;
   let totalNative = 0n;
@@ -294,38 +315,138 @@ async function getClaimTotals(
   return { totalComp, totalNative };
 }
 
+/**
+ * Simulate a claim on a Hardhat-forked network after advancing time by
+ * `SIMULATION_TIME_ADVANCE` seconds.  Returns the remaining USD
+ * (totalBudget − claimed) that would result after the simulated claim.
+ *
+ * For v1: remaining = streamAmount − suppliedAmountAfterClaim (in USDC, 6 dec)
+ * For v2: remaining = effectiveTotalNative − nativeAssetSuppliedAmountAfterClaim
+ */
+async function simulateClaimAfterDelay(
+  target: StreamTarget,
+  abi: ethers.InterfaceAbi,
+  rpcUrl: string,
+  hre: HardhatRuntimeEnvironment,
+  forkBlock?: number,
+): Promise<bigint> {
+  // Reset the Hardhat fork so every simulation starts from the live (or pinned) state
+  const forkingParams: Record<string, unknown> = { jsonRpcUrl: rpcUrl };
+  if (forkBlock !== undefined) {
+    forkingParams.blockNumber = forkBlock;
+  }
+  await hre.network.provider.request({
+    method: "hardhat_reset",
+    params: [{ forking: forkingParams }],
+  });
+
+  const hhProvider = new ethers.BrowserProvider(hre.network.provider);
+  const iface = new ethers.Interface(abi as string[]);
+
+  const contract = new ethers.Contract(target.address, abi, hhProvider);
+
+  // Determine who is allowed to call claim()
+  const caller: string =
+    target.version === "v1"
+      ? await contract.receiver()
+      : await contract.recipient();
+
+  // Advance time
+  await hre.network.provider.send("evm_increaseTime", [SIMULATION_TIME_ADVANCE]);
+  await hre.network.provider.send("evm_mine", []);
+
+  // Impersonate the caller
+  await hre.network.provider.request({
+    method: "hardhat_impersonateAccount",
+    params: [caller],
+  });
+
+  // Fund the impersonated account with ETH for gas
+  await hre.network.provider.send("hardhat_setBalance", [
+    caller,
+    "0x56BC75E2D63100000", // 100 ETH
+  ]);
+
+  // Execute claim via raw eth_sendTransaction (avoids eth_requestAccounts)
+  const claimData = iface.encodeFunctionData("claim");
+  const txHash = (await hre.network.provider.request({
+    method: "eth_sendTransaction",
+    params: [{ from: caller, to: target.address, data: claimData }],
+  })) as string;
+
+  // Wait for receipt
+  let receipt = null;
+  while (!receipt) {
+    receipt = await hhProvider.getTransactionReceipt(txHash);
+  }
+
+  // Stop impersonating
+  await hre.network.provider.request({
+    method: "hardhat_stopImpersonatingAccount",
+    params: [caller],
+  });
+
+  // Read post-claim supplied amount
+  if (target.version === "v1") {
+    const [streamAmount, suppliedAfter] = (await Promise.all([
+      contract.STREAM_AMOUNT(),
+      contract.suppliedAmount(),
+    ])) as [bigint, bigint];
+    return maxBigInt(streamAmount - suppliedAfter, 0n);
+  } else {
+    const [nativeAssetStreamingAmount, nativeAssetSuppliedAfter, streamDuration, streamEnd, startTimestamp] =
+      (await Promise.all([
+        contract.nativeAssetStreamingAmount(),
+        contract.nativeAssetSuppliedAmount(),
+        contract.streamDuration(),
+        contract.getStreamEnd(),
+        contract.startTimestamp(),
+      ])) as [bigint, bigint, bigint, bigint, bigint];
+
+    let effectiveTotalNative = nativeAssetStreamingAmount;
+    if (startTimestamp > 0n && streamEnd > 0n && streamEnd < startTimestamp + streamDuration) {
+      effectiveTotalNative =
+        (nativeAssetStreamingAmount * (streamEnd - startTimestamp)) / streamDuration;
+    }
+    return maxBigInt(effectiveTotalNative - nativeAssetSuppliedAfter, 0n);
+  }
+}
+
 async function buildV1Row(
   provider: ethers.JsonRpcProvider,
   compToken: ethers.Contract,
   target: StreamTarget,
   v1Abi: ethers.InterfaceAbi,
-  nowTs: bigint
+  nowTs: bigint,
+  rpcUrl: string,
+  hre: HardhatRuntimeEnvironment,
+  overrides: ViewOverrides = {},
 ): Promise<ReportRow> {
   const contract = new ethers.Contract(target.address, v1Abi, provider);
   const iface = contract.interface;
 
   const [streamAmount, streamDuration, startTimestamp, suppliedAmount, owedNative] =
     (await Promise.all([
-      contract.STREAM_AMOUNT(),
-      contract.STREAM_DURATION(),
-      contract.startTimestamp(),
-      contract.suppliedAmount(),
-      contract.getAmountOwed(),
+      contract.STREAM_AMOUNT(overrides),
+      contract.STREAM_DURATION(overrides),
+      contract.startTimestamp(overrides),
+      contract.suppliedAmount(overrides),
+      contract.getAmountOwed(overrides),
     ])) as [bigint, bigint, bigint, bigint, bigint];
 
   const [compBalanceRaw, compNeededRaw] = (await Promise.all([
-    compToken.balanceOf(target.address),
-    owedNative > 0n ? contract.calculateCompAmount(owedNative) : Promise.resolve(0n),
+    compToken.balanceOf(target.address, overrides),
+    owedNative > 0n ? contract.calculateCompAmount(owedNative, overrides) : Promise.resolve(0n),
   ])) as [bigint, bigint];
 
   const claimableComp = minBigInt(compBalanceRaw, compNeededRaw);
   let claimableNative = owedNative;
   if (compBalanceRaw < compNeededRaw) {
-    claimableNative = (await contract.calculateUsdcAmount(compBalanceRaw)) as bigint;
+    claimableNative = (await contract.calculateUsdcAmount(compBalanceRaw, overrides)) as bigint;
   }
 
   const nativeFromBalance =
-    compBalanceRaw > 0n ? ((await contract.calculateUsdcAmount(compBalanceRaw)) as bigint) : 0n;
+    compBalanceRaw > 0n ? ((await contract.calculateUsdcAmount(compBalanceRaw, overrides)) as bigint) : 0n;
   const streamEnd = startTimestamp === 0n ? 0n : startTimestamp + streamDuration;
   const remainingSeconds = streamEnd > nowTs ? streamEnd - nowTs : 0n;
   const effectiveTotalNative = streamAmount;
@@ -344,20 +465,21 @@ async function buildV1Row(
   // p2: COMP that cannot be claimed now (balance - owed in COMP terms)
   const p2 = compNeededRaw > 0n ? maxBigInt(compBalanceRaw - compNeededRaw, 0n) : compBalanceRaw;
   // p3: native value of p2
-  const p3 = p2 > 0n ? ((await contract.calculateUsdcAmount(p2)) as bigint) : 0n;
+  const p3 = p2 > 0n ? ((await contract.calculateUsdcAmount(p2, overrides)) as bigint) : 0n;
   const unclaimableStreamingNative = minBigInt(p1, p3);
 
   const totalBudgetRaw =
     suppliedAmount + claimableNative + unclaimableStreamingNative + requiredTopUp;
 
   const startSearchTs = startTimestamp > 86_400n ? Number(startTimestamp - 86_400n) : 0;
-  const fromBlock = await findBlockByTimestamp(provider, startSearchTs);
+  const fromBlock = await findBlockByTimestamp(provider, startSearchTs, overrides.blockTag);
   const claimTotals = await getClaimTotals(
     provider,
     target.address,
     "v1",
     iface,
-    fromBlock
+    fromBlock,
+    overrides.blockTag,
   );
 
   const avgPrice =
@@ -371,10 +493,18 @@ async function buildV1Row(
 
   const oneComp = 10n ** 18n;
   const compPriceNativeRaw =
-    (await contract.calculateUsdcAmount(oneComp)) as bigint;
+    (await contract.calculateUsdcAmount(oneComp, overrides)) as bigint;
   const compPriceNative = formatTokenAmount(compPriceNativeRaw, 6);
 
   const finish = formatUnixTs(streamEnd);
+
+  // Remaining USD = total budget − already claimed
+  const remainingUsdRaw = maxBigInt(streamAmount - suppliedAmount, 0n);
+
+  // Simulate claim after SIMULATION_TIME_ADVANCE seconds on a Hardhat fork
+  console.log(`  [v1/${target.vendor}] simulating claim after ${SIMULATION_TIME_ADVANCE}s …`);
+  const remainingAfterSim = await simulateClaimAfterDelay(target, v1Abi, rpcUrl, hre, overrides.blockTag);
+
   return {
     address: target.address,
     vendor: target.vendor,
@@ -392,6 +522,13 @@ async function buildV1Row(
     totalBudget: formatTokenAmount(totalBudgetRaw, 6),
     avgClaimCompPrice: avgPrice,
     compPriceNative,
+    remainingStreamTimeSec: remainingSeconds.toString(),
+    remainingStreamTimeAfterSimSec: (streamEnd > nowTs + BigInt(SIMULATION_TIME_ADVANCE)
+      ? streamEnd - nowTs - BigInt(SIMULATION_TIME_ADVANCE)
+      : 0n
+    ).toString(),
+    remainingUsd: formatTokenAmount(remainingUsdRaw, 6),
+    remainingUsdAfterClaim567k: formatTokenAmount(remainingAfterSim, 6),
   };
 }
 
@@ -400,7 +537,10 @@ async function buildV2Row(
   compToken: ethers.Contract,
   target: StreamTarget,
   v2Abi: ethers.InterfaceAbi,
-  nowTs: bigint
+  nowTs: bigint,
+  rpcUrl: string,
+  hre: HardhatRuntimeEnvironment,
+  overrides: ViewOverrides = {},
 ): Promise<ReportRow> {
   const contract = new ethers.Contract(target.address, v2Abi, provider);
   const iface = contract.interface;
@@ -417,33 +557,33 @@ async function buildV2Row(
     owedNative,
     streamingAssetDecimals,
   ] = (await Promise.all([
-    contract.streamingAsset(),
-    contract.nativeAssetOracle(),
-    contract.nativeAssetStreamingAmount(),
-    contract.nativeAssetSuppliedAmount(),
-    contract.streamDuration(),
-    contract.getStreamEnd(),
-    contract.startTimestamp(),
-    contract.nativeAssetDecimals(),
-    contract.getNativeAssetAmountOwed(),
-    contract.streamingAssetDecimals(),
+    contract.streamingAsset(overrides),
+    contract.nativeAssetOracle(overrides),
+    contract.nativeAssetStreamingAmount(overrides),
+    contract.nativeAssetSuppliedAmount(overrides),
+    contract.streamDuration(overrides),
+    contract.getStreamEnd(overrides),
+    contract.startTimestamp(overrides),
+    contract.nativeAssetDecimals(overrides),
+    contract.getNativeAssetAmountOwed(overrides),
+    contract.streamingAssetDecimals(overrides),
   ])) as [string, string, bigint, bigint, bigint, bigint, bigint, number, bigint, number];
 
   const [streamingAssetBalance, compBalanceRaw, compNeededRaw] = (await Promise.all([
-    new ethers.Contract(streamingAsset, ERC20_ABI, provider).balanceOf(target.address),
-    compToken.balanceOf(target.address),
-    owedNative > 0n ? contract.calculateStreamingAssetAmount(owedNative) : Promise.resolve(0n),
+    new ethers.Contract(streamingAsset, ERC20_ABI, provider).balanceOf(target.address, overrides),
+    compToken.balanceOf(target.address, overrides),
+    owedNative > 0n ? contract.calculateStreamingAssetAmount(owedNative, overrides) : Promise.resolve(0n),
   ])) as [bigint, bigint, bigint];
 
   const claimableComp = minBigInt(streamingAssetBalance, compNeededRaw);
   let claimableNative = owedNative;
   if (streamingAssetBalance < compNeededRaw) {
-    claimableNative = (await contract.calculateNativeAssetAmount(streamingAssetBalance)) as bigint;
+    claimableNative = (await contract.calculateNativeAssetAmount(streamingAssetBalance, overrides)) as bigint;
   }
 
   const nativeFromBalance =
     streamingAssetBalance > 0n
-      ? ((await contract.calculateNativeAssetAmount(streamingAssetBalance)) as bigint)
+      ? ((await contract.calculateNativeAssetAmount(streamingAssetBalance, overrides)) as bigint)
       : 0n;
 
   let effectiveTotalNative = nativeAssetStreamingAmount;
@@ -473,7 +613,7 @@ async function buildV2Row(
       : streamingAssetBalance;
   // p3: native value of p2
   const p3 =
-    p2 > 0n ? ((await contract.calculateNativeAssetAmount(p2)) as bigint) : 0n;
+    p2 > 0n ? ((await contract.calculateNativeAssetAmount(p2, overrides)) as bigint) : 0n;
   const unclaimableStreamingNative = minBigInt(p1, p3);
 
   const totalBudgetRaw =
@@ -483,13 +623,14 @@ async function buildV2Row(
     requiredTopUp;
 
   const startSearchTs = startTimestamp > 86_400n ? Number(startTimestamp - 86_400n) : 0;
-  const fromBlock = await findBlockByTimestamp(provider, startSearchTs);
+  const fromBlock = await findBlockByTimestamp(provider, startSearchTs, overrides.blockTag);
   const claimTotals = await getClaimTotals(
     provider,
     target.address,
     "v2",
     iface,
-    fromBlock
+    fromBlock,
+    overrides.blockTag,
   );
   const avgPrice =
     claimTotals.totalComp === 0n
@@ -511,13 +652,21 @@ async function buildV2Row(
   const streamingIsComp = normalizeAddress(streamingAsset) === normalizeAddress(COMP_TOKEN_ADDRESS);
   const oneComp = 10n ** 18n;
   const compPriceNativeRaw = streamingIsComp
-    ? ((await contract.calculateNativeAssetAmount(oneComp)) as bigint)
+    ? ((await contract.calculateNativeAssetAmount(oneComp, overrides)) as bigint)
     : 0n;
   const compPriceNative = streamingIsComp
     ? formatTokenAmount(compPriceNativeRaw, nativeAssetDecimals)
     : "n/a (streaming asset is not COMP)";
 
   const finish = formatUnixTs(streamEnd);
+
+  // Remaining USD = effective total − already claimed
+  const remainingUsdRaw = maxBigInt(effectiveTotalNative - nativeAssetSuppliedAmount, 0n);
+
+  // Simulate claim after SIMULATION_TIME_ADVANCE seconds on a Hardhat fork
+  console.log(`  [v2/${target.vendor}] simulating claim after ${SIMULATION_TIME_ADVANCE}s …`);
+  const remainingAfterSim = await simulateClaimAfterDelay(target, v2Abi, rpcUrl, hre, overrides.blockTag);
+
   return {
     address: target.address,
     vendor: target.vendor,
@@ -540,10 +689,20 @@ async function buildV2Row(
     totalBudget: formatTokenAmount(totalBudgetRaw, nativeAssetDecimals),
     avgClaimCompPrice: avgPrice,
     compPriceNative,
+    remainingStreamTimeSec: remainingSeconds.toString(),
+    remainingStreamTimeAfterSimSec: (streamEnd > nowTs + BigInt(SIMULATION_TIME_ADVANCE)
+      ? streamEnd - nowTs - BigInt(SIMULATION_TIME_ADVANCE)
+      : 0n
+    ).toString(),
+    remainingUsd: formatTokenAmount(remainingUsdRaw, nativeAssetDecimals),
+    remainingUsdAfterClaim567k: formatTokenAmount(remainingAfterSim, nativeAssetDecimals),
   };
 }
 
-async function main(): Promise<void> {
+export async function runReport(
+  hre: HardhatRuntimeEnvironment,
+  blockNumber?: number,
+): Promise<void> {
   const projectRoot = process.cwd();
   const envPath = path.join(projectRoot, ".env");
   const fileEnv = parseEnvFile(envPath);
@@ -551,7 +710,25 @@ async function main(): Promise<void> {
 
   const provider = new ethers.JsonRpcProvider(rpcMainnet);
   const compToken = new ethers.Contract(COMP_TOKEN_ADDRESS, ERC20_ABI, provider);
-  const nowTs = BigInt(Math.floor(Date.now() / 1000));
+
+  if (blockNumber !== undefined && (isNaN(blockNumber) || blockNumber <= 0)) {
+    throw new Error(`Invalid block value: "${blockNumber}". Must be a positive integer.`);
+  }
+
+  const overrides: ViewOverrides = blockNumber !== undefined ? { blockTag: blockNumber } : {};
+
+  let nowTs: bigint;
+  if (blockNumber !== undefined) {
+    const block = await provider.getBlock(blockNumber);
+    if (!block) {
+      throw new Error(`Block ${blockNumber} not found`);
+    }
+    nowTs = BigInt(block.timestamp);
+    console.log(`Running report at block ${blockNumber} (${new Date(block.timestamp * 1000).toISOString()})`);
+  } else {
+    nowTs = BigInt(Math.floor(Date.now() / 1000));
+    console.log("Running report at latest block");
+  }
 
   const v1Abi = JSON.parse(
     fs.readFileSync(path.join(projectRoot, "streamer.v1.json"), "utf8")
@@ -564,19 +741,14 @@ async function main(): Promise<void> {
   for (const target of STREAMS) {
     const row =
       target.version === "v1"
-        ? await buildV1Row(provider, compToken, target, v1Abi, nowTs)
-        : await buildV2Row(provider, compToken, target, v2Abi, nowTs);
+        ? await buildV1Row(provider, compToken, target, v1Abi, nowTs, rpcMainnet, hre, overrides)
+        : await buildV2Row(provider, compToken, target, v2Abi, nowTs, rpcMainnet, hre, overrides);
     rows.push(row);
   }
 
   const output = toCsv(rows);
-  const outputPath = path.join(projectRoot, "streamer-deficit-report.csv");
+  const suffix = blockNumber !== undefined ? `-block-${blockNumber}` : "";
+  const outputPath = path.join(projectRoot, `streamer-deficit-report${suffix}.csv`);
   fs.writeFileSync(outputPath, output, "utf8");
   console.log(`Created report: ${outputPath}`);
 }
-
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`Failed to generate streamer deficit report: ${message}`);
-  process.exit(1);
-});
