@@ -26,12 +26,15 @@ interface ReportRow {
   readonly compBalance: string;
   readonly availableToClaimComp: string;
   readonly availableToClaimNative: string;
+  readonly usdValueCannotBeClaimedStreaming: string;
   readonly streamFinishTs: string;
   readonly streamFinishUtc: string;
   readonly budgetForDays: string;
   readonly daysDeficit: string;
   readonly requiredTopUp: string;
+  readonly totalBudget: string;
   readonly avgClaimCompPrice: string;
+  readonly compPriceNative: string;
 }
 
 const COMP_TOKEN_ADDRESS = "0xc00e94cb662c3520282e6f5717214004a7f26888";
@@ -167,19 +170,22 @@ function escapeCsv(value: string): string {
 
 function toCsv(rows: ReadonlyArray<ReportRow>): string {
   const header = [
-    "address",
-    "vendor",
-    "claim asset",
-    "claimed amount",
-    "comp balance",
-    "Available to claim COMP",
-    "available to claim",
-    "Stream finishes ts",
-    "Stream finishes utc",
-    "Budget for days",
-    "Days deficit",
-    "Required top up",
-    "Avg claim COMP price",
+    "Address",
+    "Vendor",
+    "Claim asset",
+    "Claimed ($)",
+    "COMP balance",
+    "Available to claim (COMP)",
+    "Available to claim ($)",
+    "Unclaimable streaming ($)",
+    "Stream end (timestamp)",
+    "Stream end (UTC)",
+    "Budget (days)",
+    "Deficit (days)",
+    "Required top-up ($)",
+    "Total budget ($)",
+    "Avg COMP price ($)",
+    "COMP price ($)",
   ];
 
   const dataRows = rows.map((row) =>
@@ -191,12 +197,15 @@ function toCsv(rows: ReadonlyArray<ReportRow>): string {
       row.compBalance,
       row.availableToClaimComp,
       row.availableToClaimNative,
+      row.usdValueCannotBeClaimedStreaming,
       row.streamFinishTs,
       row.streamFinishUtc,
       row.budgetForDays,
       row.daysDeficit,
       row.requiredTopUp,
+      row.totalBudget,
       row.avgClaimCompPrice,
+      row.compPriceNative,
     ]
       .map((v) => escapeCsv(v))
       .join(",")
@@ -247,7 +256,11 @@ async function getClaimTotals(
   iface: ethers.Interface,
   fromBlock: number
 ): Promise<ClaimTotals> {
-  const topic = iface.getEvent("Claimed").topicHash;
+  const claimedEvent = iface.getEvent("Claimed");
+  if (!claimedEvent) {
+    return { totalComp: 0n, totalNative: 0n };
+  }
+  const topic = claimedEvent.topicHash;
   const latestBlock = await provider.getBlockNumber();
 
   let totalComp = 0n;
@@ -323,6 +336,20 @@ async function buildV1Row(
     remainingSeconds > budgetSeconds ? remainingSeconds - budgetSeconds : 0n;
   const requiredTopUp = maxBigInt(remainingRequiredNative - nativeFromBalance, 0n);
 
+  // p1: remaining stream in native from now to end
+  const p1 =
+    streamDuration > 0n
+      ? (streamAmount * remainingSeconds) / streamDuration
+      : 0n;
+  // p2: COMP that cannot be claimed now (balance - owed in COMP terms)
+  const p2 = compNeededRaw > 0n ? maxBigInt(compBalanceRaw - compNeededRaw, 0n) : compBalanceRaw;
+  // p3: native value of p2
+  const p3 = p2 > 0n ? ((await contract.calculateUsdcAmount(p2)) as bigint) : 0n;
+  const unclaimableStreamingNative = minBigInt(p1, p3);
+
+  const totalBudgetRaw =
+    suppliedAmount + claimableNative + unclaimableStreamingNative + requiredTopUp;
+
   const startSearchTs = startTimestamp > 86_400n ? Number(startTimestamp - 86_400n) : 0;
   const fromBlock = await findBlockByTimestamp(provider, startSearchTs);
   const claimTotals = await getClaimTotals(
@@ -342,6 +369,11 @@ async function buildV1Row(
           6
         );
 
+  const oneComp = 10n ** 18n;
+  const compPriceNativeRaw =
+    (await contract.calculateUsdcAmount(oneComp)) as bigint;
+  const compPriceNative = formatTokenAmount(compPriceNativeRaw, 6);
+
   const finish = formatUnixTs(streamEnd);
   return {
     address: target.address,
@@ -351,12 +383,15 @@ async function buildV1Row(
     compBalance: formatTokenAmount(compBalanceRaw, 18),
     availableToClaimComp: formatTokenAmount(claimableComp, 18),
     availableToClaimNative: formatTokenAmount(claimableNative, 6),
+    usdValueCannotBeClaimedStreaming: formatTokenAmount(unclaimableStreamingNative, 6),
     streamFinishTs: finish.ts,
     streamFinishUtc: finish.utc,
     budgetForDays: decimalFromRatio(budgetSeconds, 86_400n, 4),
     daysDeficit: decimalFromRatio(daysDeficitSeconds, 86_400n, 4),
     requiredTopUp: formatTokenAmount(requiredTopUp, 6),
+    totalBudget: formatTokenAmount(totalBudgetRaw, 6),
     avgClaimCompPrice: avgPrice,
+    compPriceNative,
   };
 }
 
@@ -426,6 +461,27 @@ async function buildV2Row(
     remainingSeconds > budgetSeconds ? remainingSeconds - budgetSeconds : 0n;
   const requiredTopUp = maxBigInt(remainingRequiredNative - nativeFromBalance, 0n);
 
+  // p1: remaining stream in native from now to end
+  const p1 =
+    streamDuration > 0n
+      ? (nativeAssetStreamingAmount * remainingSeconds) / streamDuration
+      : 0n;
+  // p2: streaming asset that cannot be claimed now (balance - owed in streaming asset terms)
+  const p2 =
+    compNeededRaw > 0n
+      ? maxBigInt(streamingAssetBalance - compNeededRaw, 0n)
+      : streamingAssetBalance;
+  // p3: native value of p2
+  const p3 =
+    p2 > 0n ? ((await contract.calculateNativeAssetAmount(p2)) as bigint) : 0n;
+  const unclaimableStreamingNative = minBigInt(p1, p3);
+
+  const totalBudgetRaw =
+    nativeAssetSuppliedAmount +
+    claimableNative +
+    unclaimableStreamingNative +
+    requiredTopUp;
+
   const startSearchTs = startTimestamp > 86_400n ? Number(startTimestamp - 86_400n) : 0;
   const fromBlock = await findBlockByTimestamp(provider, startSearchTs);
   const claimTotals = await getClaimTotals(
@@ -452,8 +508,16 @@ async function buildV2Row(
         ? "USD"
         : "UNKNOWN";
 
-  const finish = formatUnixTs(streamEnd);
   const streamingIsComp = normalizeAddress(streamingAsset) === normalizeAddress(COMP_TOKEN_ADDRESS);
+  const oneComp = 10n ** 18n;
+  const compPriceNativeRaw = streamingIsComp
+    ? ((await contract.calculateNativeAssetAmount(oneComp)) as bigint)
+    : 0n;
+  const compPriceNative = streamingIsComp
+    ? formatTokenAmount(compPriceNativeRaw, nativeAssetDecimals)
+    : "n/a (streaming asset is not COMP)";
+
+  const finish = formatUnixTs(streamEnd);
   return {
     address: target.address,
     vendor: target.vendor,
@@ -464,12 +528,18 @@ async function buildV2Row(
       ? formatTokenAmount(claimableComp, streamingAssetDecimals)
       : "n/a (streaming asset is not COMP)",
     availableToClaimNative: formatTokenAmount(claimableNative, nativeAssetDecimals),
+    usdValueCannotBeClaimedStreaming: formatTokenAmount(
+      unclaimableStreamingNative,
+      nativeAssetDecimals
+    ),
     streamFinishTs: finish.ts,
     streamFinishUtc: finish.utc,
     budgetForDays: decimalFromRatio(budgetSeconds, 86_400n, 4),
     daysDeficit: decimalFromRatio(daysDeficitSeconds, 86_400n, 4),
     requiredTopUp: formatTokenAmount(requiredTopUp, nativeAssetDecimals),
+    totalBudget: formatTokenAmount(totalBudgetRaw, nativeAssetDecimals),
     avgClaimCompPrice: avgPrice,
+    compPriceNative,
   };
 }
 
