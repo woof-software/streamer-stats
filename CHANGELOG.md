@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.7.0](https://github.com/owner/cursor-foundation/compare/v1.6.0...v1.7.0) (2026-02-23)
+
+### ✨ Features
+
+- **report:** add simulation for claim, new params and specific block tracking ([e1d8491](https://github.com/owner/cursor-foundation/commit/e1d8491e525d1bb2a6f38e349f2dda767bb6343e))
+
 ## [1.6.0](https://github.com/owner/cursor-foundation/compare/v1.5.0...v1.6.0) (2026-02-17)
 
 ### ✨ Features
